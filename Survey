@@ -1,0 +1,437 @@
+# **Deep Reinforcement Learning Approaches for the Traveling Salesman Problem**
+
+Prepared by Yaseen Syed for 5463
+
+Table of Content:
+
+1. Introduction to TSP and the DRL Approach  
+2. Framing TSP as a Reinforcement Learning Problem  
+3. Core Deep Learning Architectures for TSP Solvers  
+4. Training DRL Solvers for TSP  
+5. Performance Analysis and Comparison  
+6. Extensions and Recent Advances  
+7. Conclusion  
+8. Use of Large Language Models  
+9. References  
+10. Appendix
+
+## **1\. Introduction to TSP and the DRL Approach**
+
+### **1.1. The Traveling Salesman Problem (TSP)**
+
+The Traveling Salesman Problem (TSP) stands as one of the most intensely studied combinatorial optimization problems within computer science, operations research, and engineering.1 Its formulation is deceptively simple: given a set of 'cities' (nodes) and the 'distances' (costs or weights) between each pair, the objective is to find the shortest possible tour that visits every city exactly once before returning to the starting city.2 Mathematically, if we represent the cities as vertices V and the connections as edges E in a complete graph G=(V,E), where each edge (u,v) has a weight w(u,v), the goal is to find a permutation π=(v1​,...,vn​) of the vertices that minimizes the total tour length 
+
+Despite its simple statement, the TSP is notoriously difficult to solve optimally. It belongs to the class of NP-hard problems 2, meaning that the computational effort required to find the guaranteed optimal solution grows exponentially with the number of cities. This "combinatorial explosion" 17 renders exact methods impractical for large-scale instances commonly encountered in real-world applications. For instance, finding the optimal tour for an 85,900-city problem required years of CPU time using the best exact solvers.18 Nevertheless, TSP remains fundamentally important, serving as a critical benchmark for optimization algorithms 9 and forming the basis for numerous practical problems in logistics (vehicle routing, delivery planning), manufacturing (circuit board drilling, robotic path planning), bioinformatics (DNA sequencing), and scheduling.2 Many complex routing problems, such as the Vehicle Routing Problem (VRP), can be viewed as generalizations of the TSP.3  
+Traditional approaches to solving the TSP fall into two main categories.3 Exact algorithms, such as those based on integer linear programming formulations solved via branch-and-cut methods (e.g., the Concorde solver 12) or dynamic programming, guarantee finding the optimal solution but suffer from prohibitive computational costs for large instances. Heuristic algorithms, on the other hand, aim to find high-quality, near-optimal solutions within a reasonable time frame, sacrificing the guarantee of optimality for speed. Prominent heuristics include local search methods like Lin-Kernighan (LK) and its highly effective variant LKH (Lin-Kernighan-Helsgaun) 12, construction heuristics like Nearest Neighbor, and metaheuristics like Genetic Algorithms or Ant Colony Optimization.12 State-of-the-art solvers like Concorde and LKH-3 are highly specialized and can efficiently solve very large TSP instances 18, setting a high bar for performance.
+
+### **1.2 Deep Reinforcement Learning (DRL): A Quick Overview**
+
+Reinforcement Learning (RL) is a machine learning paradigm focused on how intelligent agents ought to take actions in an environment to maximize the notion of cumulative reward. Unlike supervised learning, RL agents learn from the consequences of their actions through trial-and-error, guided by scalar reward signals, rather than explicitly labeled examples.
+
+#### **1.2.1 Markov Decision Process (MDP)**
+
+The standard framework for modeling sequential decision-making problems in RL is the Markov Decision Process (MDP). An MDP is formally defined by a tuple (S,A,P,R,γ):
+
+* **States (S):** A set representing all possible situations or configurations the agent can perceive in the environment. For CO problems, this might be the current partial solution, remaining resources, or unassigned elements.  
+* **Actions (A):** A set of choices the agent can make in a given state. In CO, this could be selecting the next item/city/node or choosing an improvement operator.  
+* **Transition Probability (P):** P(s′∣s,a)=P(St+1​=s′∣St​=s,At​=a) defines the probability of moving to state s′ after taking action a in state s. For deterministic CO problems, this transition is often fixed by the problem rules.  
+* **Reward (R):** R(s,a,s′) is the immediate scalar feedback received after transitioning from s to s′ via action a. Rewards guide the agent towards desirable outcomes.  
+* **Discount Factor (**γ**):** A value 0≤γ≤1 that balances the importance of immediate versus future rewards.
+
+The agent's goal is to learn an optimal **policy** π∗(a∣s), a strategy mapping states to actions (or probabilities of actions), that maximizes the expected discounted cumulative reward (the **return**) from any starting state. **Value functions**, such as the state-value function Vπ(s) (expected return from state s following policy π) or the action-value function Qπ(s,a) (expected return from taking action a in state s and then following π), are often learned to evaluate states or actions and guide policy improvement.
+
+#### **1.2.2 Why Deep Reinforcement Learning?**
+
+#### Traditional RL methods often struggle with problems having large or continuous state/action spaces due to the difficulty of representing policies or value functions explicitly (e.g., in tables). Deep Reinforcement Learning (DRL) addresses this by using deep neural networks (DNNs) as powerful function approximators.
+
+DNNs can learn complex, non-linear mappings from high-dimensional inputs (raw state observations) to outputs like action probabilities (policy networks) or value estimates (value networks). This allows RL principles to be applied to complex problems like CO, where states can involve intricate graph structures or large feature vectors, without extensive manual feature engineering.
+
+#### **1.2.3 Relevant DRL Algorithms**
+
+Several families of DRL algorithms are commonly employed for CO problems:
+
+* **Value-Based Methods (e.g., DQN):** These methods learn an action-value function Q(s,a) and derive a policy by selecting actions with the highest Q-values. Deep Q-Networks (DQN) use a DNN to approximate Q∗(s,a). Techniques like experience replay (storing and sampling past transitions) and target networks (using a separate, fixed network for target value calculation) enhance stability. While challenged by large discrete action spaces common in CO, variants and adaptations exist, such as using GNNs with Q-learning or specialized architectures. Noisy Networks, which add learnable noise to network parameters, can improve exploration.  
+* **Policy Gradient Methods (e.g., REINFORCE, PPO):** These algorithms directly parameterize the policy πθ​(a∣s) with a DNN and optimize the parameters θ by performing gradient ascent on the expected return objective. REINFORCE is a foundational Monte Carlo method often used for training constructive models for TSP and VRP. Baselines are crucial to reduce the high variance inherent in these methods. Proximal Policy Optimization (PPO) improves stability and sample efficiency by using a clipped surrogate objective function that limits policy update sizes. PPO has been applied to learn branching strategies in Branch & Bound and for scheduling.  
+* **Actor-Critic Methods (e.g., A2C, A3C):** These methods combine policy-based and value-based approaches. They maintain two networks: an **actor** network representing the policy πθ​(a∣s) and a **critic** network learning a value function (e.g., Vϕ​(s)) to evaluate the actor's actions. The critic's evaluation provides a lower-variance estimate (often the advantage A(s,a)=Q(s,a)−V(s)) to guide the actor's updates. Advantage Actor-Critic (A2C) is a synchronous version, while Asynchronous Advantage Actor-Critic (A3C) uses multiple parallel actors for faster training. These are widely used for CO problems like KP and MKP.
+
+#### **1.2.4 Exploration vs. Exploitation**
+
+A fundamental RL challenge is balancing **exploration** (trying new actions to discover potentially better strategies) and **exploitation** (using currently known best actions to maximize immediate reward). Common strategies include ϵ-greedy (acting greedily most of the time but exploring randomly with probability ϵ, often used with DQN), entropy regularization (adding an entropy bonus to the objective to encourage policy randomness, common in Actor-Critic/PPO), and Noisy Networks. Effective exploration is critical for navigating the complex and potentially deceptive reward landscapes of CO problems.
+
+### **1.3. Deep Reinforcement Learning (DRL) for Combinatorial Optimization (CO)**
+
+Deep Reinforcement Learning (DRL) has emerged as a powerful machine learning paradigm, enabling agents to learn complex behaviors through interaction with an environment.3 By receiving feedback in the form of rewards or penalties, the agent learns a policy – a strategy for selecting actions – that maximizes its cumulative reward over time. This learning process is often formalized using the framework of Markov Decision Processes (MDPs).1 DRL combines reinforcement learning principles with deep neural networks (DNNs) to approximate policies or value functions, allowing it to handle high-dimensional state and action spaces encountered in complex tasks.3 Common DRL algorithms include Q-Learning, SARSA, policy gradient methods like REINFORCE, and Actor-Critic approaches.5   
+Applying DRL to combinatorial optimization problems like the TSP is motivated by the potential to automatically learn effective heuristics without the need for extensive manual design or domain-specific expertise.15 For NP-hard problems where optimal algorithm design is challenging, DRL offers a data-driven alternative.3 The allure lies in training models that can generalize patterns learned from smaller or simulated instances to solve new, unseen problems quickly during inference.12  
+Furthermore, DRL frameworks offer potential flexibility. Modifying the reward function allows the agent to be trained for different objectives or constraints, potentially adapting more easily to problem variations than highly specialized traditional solvers.17 This adaptability is particularly relevant for real-world scenarios that often involve dynamic elements (e.g., new orders arriving), time windows, capacity limits, or multiple objectives – complexities that can be challenging to incorporate into traditional TSP solvers.  
+It is important to contextualize the goals of DRL in TSP. While early research explored the potential of DRL, the primary aim is often not to surpass the absolute best solution quality achieved by highly optimized solvers like Concorde or LKH on large, static benchmark instances. Instead, the focus frequently shifts towards achieving a favorable trade-off between solution quality and computational speed.12 DRL methods can often generate near-optimal solutions significantly faster than exact methods or even sophisticated heuristics 18, making them attractive for time-sensitive applications like real-time routing or logistics planning.12 The development of DRL for TSP also serves a broader purpose: TSP acts as a canonical NP-hard problem, providing a well-understood testbed for advancing DRL techniques applicable to a wide range of challenging CO problems, including VRP and scheduling.3 Successes and challenges encountered in applying DRL to TSP often yield valuable insights for the wider field of learning-based optimization.
+
+## **2\. Framing TSP as a Reinforcement Learning Problem**
+
+### **2.1. The Markov Decision Process (MDP) Formulation**
+
+To apply RL, the TSP must be framed as an MDP. The process of constructing a TSP tour involves making a sequence of decisions (which city to visit next), where each decision influences future possibilities and the final outcome (total tour length). This sequential decision-making structure aligns naturally with the MDP framework.1 An MDP is typically defined by a tuple (S,A,P,R,γ), representing states, actions, transition probabilities, rewards, and a discount factor. In the context of TSP solved via constructive DRL methods, the agent starts in an initial state, sequentially selects actions (cities), transitions deterministically to new states (updated partial tours), and receives a reward, often only upon completion of the tour.
+
+### **2.2. State Representations (S)**
+
+The state s∈S must encapsulate all information relevant for the agent to make the next decision. For TSP, this typically includes:
+
+* **Static Information:** The definition of the problem instance itself, primarily the coordinates or distance matrix of all cities, which remains constant throughout an episode.5  
+* **Dynamic Information:** Information about the current progress of the tour construction. This can be represented in various ways:  
+  * The sequence of cities visited so far.5  
+  * The set of visited cities and the identity of the last visited city.5  
+  * The current location of the agent (salesman/driver).4  
+  * A binary mask indicating which cities have been visited.2  
+* **Contextual Information (for variants):** Additional details relevant to specific TSP variations, such as remaining time limits or budget 20, capacity constraints 4, or the status of prizes/orders (collected/pending).1  
+* **Learned Embeddings:** Modern DRL approaches heavily rely on neural networks (RNNs, Transformers, GNNs) as encoders to transform the raw state information into rich, high-dimensional vector representations (embeddings).2 These embeddings capture complex spatial relationships, graph structure, and the context of the partial tour, serving as the effective state input for the policy network (decoder) that selects the next action. The evolution from simpler representations to these learned embeddings reflects the increasing sophistication of deep learning models applied to TSP, aiming to provide the decision-making component with more informative inputs.
+
+### **2.3. Action Spaces (A)**
+
+The action a∈A represents the decision the agent makes at each step.
+
+* **Standard TSP:** In most constructive DRL formulations for the standard TSP, the action is the selection of the *next city* to visit from the set of currently unvisited cities.5  
+* **Gridworld Variants:** In some simplified grid-based formulations (like the delivery example in 4), actions might be low-level movements (Up, Down, Left, Right). However, more common approaches abstract this pathing away and focus on the higher-level decision of choosing the next destination node.4  
+* **Dynamic Action Space:** A key feature is that the set of available actions changes at each step. As cities are visited, they are removed from the set of valid next choices. This is typically handled by masking mechanisms in the policy network's output layer, ensuring only unvisited cities have non-zero selection probabilities.30  
+* **Restricted Action Space:** Some approaches deliberately restrict the action space to improve efficiency or generalization. For instance, the TS3 model limits the choice of the next city to the k-Nearest Neighbors (k-NN) of the last visited city, based on the observation that optimal tours often involve connections between nearby cities.2
+
+### **2.4. Reward Design (R)**
+
+The reward signal R(s,a,s′) guides the learning process. Designing an effective reward function is crucial but challenging for TSP.
+
+* **Negative Tour Length (Sparse Reward):** The most common approach, particularly for constructive methods, is to provide a reward only at the end of an episode (when a complete tour visiting all cities and returning to the start is formed). This reward is typically the negative of the total tour length.5 Maximizing this cumulative reward directly corresponds to minimizing the tour length.  
+* **Step-wise Rewards:** To provide denser feedback, some formulations incorporate intermediate rewards or costs. A common technique is to assign a small negative reward (e.g., \-1) for each step taken or unit of distance traveled, encouraging the agent to complete the tour efficiently. In TSP variants, positive rewards might be given for achieving intermediate goals, such as delivering an order within a promised time or collecting a prize at a node.1  
+* **The Sparsity Challenge:** The primary reward based on the final tour length is inherently sparse. The agent receives no feedback on the quality of its choices until the very end of a potentially long sequence of actions. This makes credit assignment difficult – it's hard to determine which specific actions contributed positively or negatively to the final tour length. This sparsity is a major bottleneck, leading to high variance in gradient estimates during training and making learning unstable and sample-inefficient, especially as the number of cities increases.5 This challenge motivates significant research into advanced training algorithms, variance reduction techniques (like sophisticated baselines, discussed later), and alternative learning paradigms that might offer denser learning signals.
+
+Table 2: Some Examples of MDP formulations5
+
+| Paper | State | Action | Reward |
+| ----- | ----- | ----- | ----- |
+| (Kool et al., 2018\) | Instance Sequence | Full Tour | Tour Length |
+| (Deudon et al., 2018\) | Instance Sequence | Full Tour | Tour Length |
+| (Kwon et al., 2020\) | Instance Sequence | Multi Full Tour | Average Length |
+| (Ma et al., 2019\) | Partial Tour | City Node | Increment Length |
+| (Emami and Ranka, 2018\) | Instance Sequence | Full Tour | Tour Length |
+| (Cappart et al., 2021\) | Instance Sequence \+ Partial Tour | City Node | Algorithm Defined Cost |
+| (Chen and Tian, 2019\) | Full Tour | Improvement Rule | Tour Length Difference (Current Tour, State Tour) |
+| (Lu et al., 2019\) | Instance Sequence \+ Full Tour \+ History Action-Reward | Improvement Rule | \+1 if Improved |
+| (Wu et al., 2019\) | Full Tour | Node Pair | Tour Length Difference (Current Tour, Best Tour) |
+| (Ma et al., 2021\) | Full Tour \+ Position | Node Pair | Tour Length Difference (Current Tour, Best Tour) |
+| (d O Costa et al., 2020\) | Full Tour \+ Best Tour | Node Pair | Tour Length Difference (Current Tour, Best Tour) |
+| (Zheng et al., 2021\) | City Node | City Node | LKH Defined Cost Difference |
+
+### **2.5. Constructive vs. Improvement Heuristics**
+
+DRL methods for TSP generally fall into two main categories based on how they generate or refine solutions 5:
+
+* **Constructive Heuristics:** These methods build a TSP solution incrementally from scratch. The RL agent learns a policy that, given the current partial tour (state), selects the next city to add (action).5 The process continues until all cities are visited. Examples include methods based on Pointer Networks 6, Attention Models 16, and the POMO framework.32 These approaches aim for end-to-end solution generation, potentially discovering novel construction strategies. However, they directly face the challenge of sparse rewards and can struggle with scaling to very large instances.14  
+* **Improvement Heuristics:** These methods start with an existing feasible solution (which could be generated randomly or by a simple heuristic) and iteratively refine it. The RL agent learns a policy to select *which* improvement operator (e.g., 2-opt, 3-opt, Or-opt, Lin-Kernighan moves) to apply, and potentially *where* to apply it, to enhance the current solution.5 Examples include DRL-2 opt 18, which learns to select 2-opt moves; VSR-LKH 18, which uses RL to guide edge selection within an LKH-like framework; and GNN-guided local search 24, where a GNN predicts information (like edge regret) to guide a local search algorithm like GLS. These methods leverage the power of well-established local search operators, potentially leading to higher-quality solutions, but the learning task is focused on guiding the search rather than constructing the tour from nothing. They might be considered less "end-to-end" and their performance can depend on the quality of the initial solution and the effectiveness of the chosen operators.
+
+The choice between these two paradigms reflects a fundamental trade-off in applying DRL to TSP: learning to build versus learning to improve.
+
+## **3\. Core Deep Learning Architectures for TSP Solvers**
+
+The success of DRL for TSP is tightly coupled with the evolution of deep learning architectures capable of processing graph-structured data and sequential decision problems. The progression from recurrent models to attention-based models and graph neural networks reflects an ongoing effort to better capture the complex spatial and combinatorial relationships inherent in the TSP.
+
+### **3.1. Sequence-to-Sequence Models: Pointer Networks**
+
+An early breakthrough in applying deep learning to combinatorial optimization problems came with Pointer Networks (PtrNets), introduced by Vinyals et al. (2015).24 PtrNets adapt the sequence-to-sequence framework, commonly used in natural language processing, to problems where the output sequence consists of elements from the input sequence.6  
+The typical PtrNet architecture for TSP employs an encoder, usually a Long Short-Term Memory (LSTM) network, to process the input sequence of city coordinates, generating hidden state representations for each city.6 A decoder, also often an LSTM, then uses an attention mechanism at each step to compute scores over the input cities. These scores are passed through a softmax layer to produce a probability distribution, effectively "pointing" to the next city to be included in the tour.6 To ensure a valid TSP tour (a permutation), mechanisms are used to mask or prevent the selection of already visited cities.30  
+Bello et al. (2016) demonstrated the feasibility of training PtrNets using reinforcement learning (specifically, the REINFORCE algorithm) to learn TSP heuristics directly from the objective function (tour length), without requiring supervised labels of optimal tours.24 This work established PtrNets as a foundational architecture for neural combinatorial optimization.  
+Subsequent research extended the basic PtrNet. Graph Pointer Networks (GPNs) incorporated a graph embedding layer to better capture graph structure before the pointing mechanism.6 Hybrid Pointer Networks (HPNs) further combined GPNs with Transformer-based encoders for potentially richer feature extraction.6 Other variations include Pointerformer, which utilizes a multi-pointer Transformer architecture 7, and MODGRL for multi-objective TSP using GPNs.29
+
+### 
+
+### **3.2. Attention Mechanisms: Attention Model & Transformers**
+
+The advent of the Transformer architecture (Vaswani et al., 2017), driven by the power of self-attention mechanisms, provided new tools for modeling relationships within sequences and sets, proving highly effective for TSP. Unlike RNNs which process sequences sequentially, self-attention allows the model to directly weigh the importance of all input elements (cities) when computing the representation for each element, capturing global context more effectively.  
+A landmark contribution was the Attention Model (AM) proposed by Kool et al. (2018).2 This model employs a Transformer-based encoder-decoder structure specifically tailored for routing problems like TSP:
+
+* **Encoder:** Multiple layers of multi-head self-attention (MHA) and feed-forward (FF) networks process the input city coordinates to produce rich node embeddings. Crucially, it omits positional encodings, making the embeddings invariant to the input order of cities.16 It also computes a global graph embedding by averaging the final node embeddings.  
+* **Decoder:** At each step t, the decoder uses an attention mechanism to select the next city πt​. It computes a query based on the current context, which includes the global graph embedding, the embedding of the previously selected city πt−1​, and the embedding of the first city π1​. This query attends to the node embeddings produced by the encoder. A masking mechanism ensures only unvisited cities are considered.16
+
+The Attention Model, trained with REINFORCE using an innovative greedy rollout baseline, significantly improved upon previous learned heuristics for TSP.31 It became a foundational model for subsequent research.  
+The Policy Optimization with Multiple Optima (POMO) method by Kwon et al. (2020) utilizes the same core Attention Model architecture but introduces significant modifications to the training and inference procedures (detailed in Sections 4 and 5\) to exploit problem symmetries and improve performance and stability.14  
+Other Transformer-based variants continue to be developed, often focusing on improving scalability or generalization. TS3 employs a Transformer but restricts the decoder's action space to the k-Nearest Neighbors and uses separate local and global views to enhance generalization.2 Pointerformer leverages reversible residual networks and multi-pointer attention within a Transformer framework.7 FEAM enhances the Transformer encoder with feature filtering and graph embedding layers.49 Models using Performer architecture replace standard attention with linear-complexity approximations to tackle larger instances.10
+
+### **3.3. Graph Neural Networks (GNNs)**
+
+Graph Neural Networks (GNNs) are inherently well-suited for problems defined on graphs, like the TSP. They operate directly on the graph structure, using message-passing mechanisms to iteratively update node (and sometimes edge) representations based on their neighbors' features and the graph topology.3 This allows GNNs to explicitly learn structural information that might be harder for sequence-based models like RNNs or even Transformers to capture perfectly.  
+GNNs have been incorporated into TSP solvers in several ways:
+
+* **As Encoders:** GNN architectures like Graph Convolutional Networks (GCNs) 21 or Graph Attention Networks (GATs) 43 are used as powerful encoders within the encoder-decoder framework. They process the city coordinates and graph structure to generate node embeddings, which are then fed into an attention-based decoder (similar to the AM decoder) to construct the tour.21 This leverages the GNN's strength in graph representation learning.  
+* **For Heatmap Prediction:** Instead of constructing a tour directly, some approaches train a GNN (often using supervised learning with optimal tours as labels) to predict a "heatmap" – a probability distribution over all edges in the graph, indicating the likelihood that each edge belongs to the optimal tour.14 A separate post-processing step, typically involving a search algorithm like beam search, is then required to extract a valid, high-quality tour from this heatmap.  
+* **Guiding Improvement Heuristics:** GNNs can learn policies or value functions to guide traditional local search algorithms. For example, a GNN can be trained to predict the "regret" of including an edge in the solution, providing valuable information to guide algorithms like Guided Local Search (GLS).24 Other works use GNNs within RL frameworks to learn policies for selecting effective improvement operators.40  
+* **Unsupervised Learning Frameworks:** Some recent work trains GNNs for TSP in an unsupervised manner, without relying on RL rewards or optimal solution labels.23 This typically involves designing surrogate loss functions that implicitly encourage the GNN to output representations corresponding to short Hamiltonian cycles.
+
+A practical consideration when using GNNs for TSP is that the standard TSP is defined on a complete graph, where every city is connected to every other city. Many GNN architectures are primarily designed for sparse graphs. Applying them directly to dense TSP graphs can be computationally expensive and may not be the most effective way to leverage their capabilities. Research has shown that sparsifying the TSP graph before feeding it to the GNN – for instance, by keeping only edges connecting a node to its k nearest neighbors (k-NN) or using heuristics like the 1-Tree – can significantly improve both performance and runtime.51 This preprocessing step acts as a heuristic filter, focusing the GNN's learning on more promising edges and simplifying the task.  
+The diverse ways GNNs are employed highlight their flexibility. While architectures like PtrNets and AM often focus on end-to-end construction, GNNs are frequently used as powerful components within hybrid systems, providing structural insights that guide other search or optimization algorithms. This suggests a potential synergy where GNNs excel at understanding the graph structure, which can then be leveraged by other mechanisms to find high-quality solutions.
+
+## **4\. Training DRL Solvers for TSP**
+
+Training DRL agents to solve TSP effectively involves selecting appropriate learning algorithms and incorporating techniques to handle the challenges posed by the problem's complexity and the typical reward structure.
+
+### **4.1. Policy Gradient Methods (REINFORCE)**
+
+Policy gradient methods, particularly the REINFORCE algorithm (also known as Monte Carlo policy gradient), are widely used for training constructive DRL models for TSP.16 The core idea is to directly adjust the parameters θ of the policy network (e.g., Pointer Network, Attention Model) to increase the probability of generating tours with lower lengths (higher rewards).  
+The algorithm works by sampling complete tours π from the current policy pθ​(π∣s) for a given TSP instance s. The gradient of the expected objective (negative tour length L(π)) is then estimated using the sampled tour and its log-probability: ∇θ​J(θ∣s)≈(L(π)−b(s))∇θ​logpθ​(π∣s).16 Here, b(s) is a baseline value used for variance reduction. The network parameters are updated via gradient ascent (or descent on the negative objective). REINFORCE was used in seminal works applying PtrNets 30 and Attention Models 5 to TSP, and remains a cornerstone for many subsequent approaches, including POMO 32 and others.10
+
+### **4.2. Actor-Critic Methods**
+
+Actor-Critic methods offer an alternative to pure policy gradient approaches like REINFORCE. They maintain two distinct components:
+
+* **Actor:** The policy network, responsible for selecting actions (e.g., the next city).  
+* **Critic:** A value network that learns to estimate a value function, such as the state value V(s) (expected return from state s) or the state-action value Q(s,a) (expected return from taking action a in state s).
+
+The Critic provides a more stable, lower-variance estimate of the advantage of taking an action compared to the raw Monte Carlo return used in REINFORCE. This advantage signal is then used to update the Actor's policy. Actor-Critic methods have been applied to TSP.5 In some cases, the Critic network itself might be structured similarly to the encoder part of the policy network and serve effectively as a learned baseline for a REINFORCE-style update.5
+
+### **4.3. Importance of Baselines**
+
+As mentioned, the sparse reward (negative tour length) in TSP leads to high variance in policy gradient estimates. Baselines are crucial for mitigating this variance, stabilizing training, and accelerating convergence.5 By subtracting a baseline b(s) from the sampled return L(π), the update signal (L(π)−b(s)) reflects whether the sampled tour was better or worse than expected for that instance, rather than its absolute quality. Several baseline strategies have been employed:
+
+* **Simple Baselines:** Using the average reward across a batch of sampled tours.  
+* **Learned Value Function:** Using the output of a Critic network as the baseline b(s)=V(s).5  
+* **Greedy Rollout Baseline:** This proved effective in early work. The baseline b(s) is the tour length obtained by deterministically (greedily) choosing the highest-probability action at each step according to the current policy or a slightly older "best" policy.5 Kool et al. (2018) maintained a separate baseline network, updating it to the current model's parameters only when the current model showed statistically significant improvement on a validation set (evaluated using a t-test).5  
+* **POMO Shared Baseline:** Kwon et al. (2020) introduced a baseline specifically designed for their multi-rollout training approach. For a single TSP instance, they generate N different tours by starting the construction process from each of the N cities. The shared baseline bshared​(s) is simply the average length of these N tours. This same average value is then used as the baseline for *all* N gradient updates corresponding to that instance.32 This approach is argued to provide a low-variance estimate of the instance's difficulty and encourage exploration towards diverse good solutions, making learning less prone to getting stuck in local optima.32
+
+The evolution of baseline techniques underscores their critical role in making policy gradient methods practical for the challenging optimization landscape of TSP.
+
+### **4.4. Advanced Training & Inference Techniques**
+
+Beyond the core RL algorithms and baselines, various techniques enhance training and inference:
+
+* **POMO's Multiple Rollouts:** As part of its training strategy, POMO generates N parallel trajectories for each instance, each starting from a different city.32 This inherently exploits the symmetry of the TSP (the optimal tour is independent of the starting city) and provides richer gradient information from a single instance compared to single-rollout methods.  
+* **Data Augmentation & Symmetry Exploitation:** For Euclidean TSP, the optimal tour length is invariant to geometric transformations like rotations and flips. This symmetry can be exploited by augmenting the training data with transformed versions of instances or by applying these transformations during inference, generating multiple solutions from augmented instances, and selecting the best one. This improves robustness and often leads to significantly better solution quality.2  
+* **Sampling / Beam Search / MCTS:** Instead of just taking the single greedy path during inference, performance can often be improved by exploring more solutions. This can be done by sampling multiple tours from the learned policy's probability distribution or by using more structured search methods like beam search 5 or even Monte Carlo Tree Search (MCTS) guided by the learned policy or value estimates.2 These methods trade increased computation time at inference for potentially better solutions.  
+* **Meta-Learning:** Techniques from meta-learning can be applied to improve the stability of RL training or to learn initializations that allow faster fine-tuning on specific problem instances or sizes.14  
+* **Curriculum Learning / Pre-training:** Training DRL models directly on large TSP instances is often difficult and computationally expensive.5 A common strategy is to train on smaller instances (e.g., TSP50) and then attempt to apply the model to larger ones (e.g., TSP100 or TSP500). However, naive transfer often results in poor performance.2 More sophisticated approaches involve carefully designed curricula or pre-training strategies, sometimes combined with architectures designed for better generalization.2  
+* **Hybrid Learning Paradigms:** Recognizing the challenges of pure RL (especially sample efficiency and reward sparsity), researchers explore hybrid approaches. This includes combining RL with Supervised Learning (SL), for example, by pre-training on optimal solutions generated by traditional solvers 14, or using SL to learn intermediate representations like heatmaps.14 Unsupervised Learning (UL) approaches train models using surrogate losses that encode TSP properties, avoiding the need for rewards or optimal labels altogether.23 Integrating learned models with traditional search algorithms (like MCTS or GLS) is another form of hybrid approach.2  
+* **Generative Flow Networks (GFlowNets):** Proposed as an alternative learning framework to RL for generative tasks, GFlowNets aim to learn a policy that samples objects x (e.g., TSP tours) with probability proportional to a given reward R(x).36 This different objective might offer advantages for exploring diverse, high-quality solutions in combinatorial spaces.
+
+These advanced techniques demonstrate the field's efforts to overcome the inherent difficulties of applying DRL to TSP, focusing on improving stability, sample efficiency, final solution quality, and the ability to handle larger, more realistic problem instances. The trend towards hybrid learning paradigms suggests that combining the strengths of DRL with insights from SL, UL, or traditional OR methods may be a fruitful direction.
+
+Table 1: Summary of Techniques
+
+| Paper | Encoder | Decoder | Inference | Learning Policy |
+| ----- | ----- | ----- | ----- | ----- |
+| (Kool et al., 2018\) | Transformer | Attention | Sampling | Solution Rollout, REINFORCE with baseline |
+| (Deudon et al., 2018\) | Transformer | Attention | Sampling \+ 2-opt | Solution Rollout, Actor-Critic |
+| (Kwon et al., 2020\) | Transformer | Attention | Sampling \+ Augmentation | **POMO** Solution Rollout, REINFORCE with baseline |
+| (Ma et al., 2019\) | **GCN** | Attention \+ **LSTM** | Sampling \+ 2-opt | Rollout, REINFORCE with baseline |
+| (Emami and Ranka, 2018\) | MLP | **SinkHorn** | 2-opt | **Solution Permutation**, Actor-Critic |
+| (Cappart et al., 2021\) | GAT | MLP | NA | **DP Heuristic**, DQN/PPO |
+| (Chen and Tian, 2019\) | Bidirectional LSTM | MLP | Multi-Run | **Region, Rule**, Actor-Critic |
+| (Lu et al., 2019\) | Transformer | Attention \+ **Perturbation** | Multi-Run \+ **Ensemble** | Rule, REINFORCE with baseline |
+| (Wu et al., 2019\) | Transformer | **Compatibility** | Multi-Run | **2-opt Matrix**, Actor-Critic |
+| (Ma et al., 2021\) | **Dual**\-Transformer | **Dual**\-Compatibility | Multi-Run | 2-opt Matrix, Actor-Critic |
+| (d O Costa et al., 2020\) | GCN | Attention | Multi-Run | **k-opt** Rollout, Actor-Critic |
+| (Zheng et al., 2021\) | NA | NA | NA | **LKH-α-value**, Monte Carlo \+ 1-step TD |
+
+## **5\. Performance Analysis and Comparison**
+
+Evaluating the effectiveness of DRL approaches for TSP requires standardized benchmarking and careful consideration of the trade-offs between solution quality and computational resources.
+
+### **5.1. Benchmarking Instances**
+
+Comparisons typically rely on randomly generated Euclidean TSP instances, where cities are points in a 2D plane and distances are Euclidean. Standard sizes used for benchmarking DRL methods include TSP20, TSP50, and TSP100, as these allow for comparison with both optimal solvers and prior DRL work.21 Testing scalability and generalization often involves larger random instances, such as TSP500, TSP1000, or even up to TSP10000.18 Additionally, instances from the TSPLIB benchmark suite are sometimes used to evaluate performance on problems with more structure or non-uniform distributions.2
+
+### **5.2. Metrics**
+
+The primary metrics used for evaluation are:
+
+* **Solution Quality:** Usually reported as the average tour length achieved by the algorithm over a set of test instances. More informatively, it is often presented as the **optimality gap**, calculated as the percentage difference between the tour length found by the algorithm and the known optimal tour length (obtained using exact solvers like Concorde) or the length found by a strong heuristic like LKH.18 A smaller gap indicates better performance.  
+* **Computation Time:** Typically refers to the **inference time** – the time taken by the trained model to generate solutions for a set of test instances.18 This is often reported per instance or for processing a large batch (e.g., 10,000 instances). Training time is also a relevant factor, as training DRL models can be very time-consuming 5, but inference time is more critical for practical deployment in time-sensitive applications.
+
+### **5.3. Results Table: TSP20, TSP50, TSP100 Comparison**
+
+The following table summarizes representative performance results for various methods on standard TSP benchmarks, primarily drawing data from Kool et al. (2018) 31, Kwon et al. (2020) 34, and Hudson et al. (2021).43 Note that inference times can vary based on hardware (CPU/GPU) and implementation details (batch size, number of samples/augmentations).
+
+| Problem Size (n) | Method | Avg. Tour Length | Opt. Gap (%) vs Concorde | Inference Time (Approx.) | Notes |
+| :---- | :---- | :---- | :---- | :---- | :---- |
+| **TSP20** | Concorde | 3.83 | 0.00% | Slow (Exact) | Optimal Solver |
+|  | LKH3 | 3.84 | \~0.00% | \~18s / 10k inst. (CPU) | Heuristic Solver 31 |
+|  | AM (greedy) | 3.85 | 0.34% | \<1s / 10k inst. (GPU) | Kool et al. 2018 31 |
+|  | AM (sampling 1280\) | 3.84 | 0.08% | \~5m / 10k inst. (GPU) | Kool et al. 2018 31 |
+|  | POMO (no aug) | 3.83 | 0.04% | \~1s / 10k inst. (GPU) | Kwon et al. 2020 34 |
+|  | POMO (x8 aug) | 3.83 | 0.00% | \~3s / 10k inst. (GPU) | Kwon et al. 2020 34 |
+| **TSP50** | Concorde | 5.69 | 0.00% | Slow (Exact) | Optimal Solver |
+|  | LKH3 | 5.70 | \~0.00% | \~5m / 10k inst. (CPU) | Heuristic Solver 31 |
+|  | AM (greedy) | 5.80 | 1.76% | \~2s / 10k inst. (GPU) | Kool et al. 2018 31 |
+|  | AM (sampling 1280\) | 5.73 | 0.52% | \~24m / 10k inst. (GPU) | Kool et al. 2018 31 |
+|  | POMO (no aug) | 5.70 | 0.21% | \~2s / 10k inst. (GPU) | Kwon et al. 2020 34 |
+|  | POMO (x8 aug) | 5.69 | 0.03% | \~16s / 10k inst. (GPU) | Kwon et al. 2020 34 |
+| **TSP100** | Concorde | 7.76 | 0.00% | Slow (Exact) | Optimal Solver |
+|  | LKH3 | 7.76 | \~0.00% | \~21m / 10k inst. (CPU) | Heuristic Solver 31 |
+|  | AM (greedy) | 8.12 | 4.53% | \~6s / 10k inst. (GPU) | Kool et al. 2018 31 |
+|  | AM (sampling 1280\) | 7.94 | 2.26% | \~1h / 10k inst. (GPU) | Kool et al. 2018 31 |
+|  | POMO (no aug) | 7.80 | 0.46% | \~11s / 10k inst. (GPU) | Kwon et al. 2020 34 |
+|  | POMO (x8 aug) | 7.77 | 0.14% | \~1m / 10k inst. (GPU) | Kwon et al. 2020 34 |
+|  | GNN+GLS | \- | 0.70% | \~10s / instance  | Hudson et al. 2021 43 (fixed time) |
+
+*Notes: Optimality gaps and times are approximate based on reported values. Inference times are highly dependent on hardware and batching. AM \= Attention Model. POMO \= Policy Optimization with Multiple Optima. GNN+GLS \= Graph Neural Network \+ Guided Local Search. Augmentation refers to instance augmentation during inference.*
+
+### **5.4. Discussion of Quality-Time Trade-off**
+
+The results table highlights the central trade-off.
+
+* **DRL Speed:** DRL methods, especially using greedy decoding (e.g., AM (greedy), POMO (no aug)), offer extremely fast inference times, often solving thousands of instances in seconds on a GPU.31 This is orders of magnitude faster than Concorde and significantly faster than LKH, particularly as problem size increases.  
+* **DRL Quality Gap:** However, this speed comes at the cost of solution quality. Greedy DRL solutions typically have optimality gaps ranging from \~0.3% for TSP20 to over 4% for TSP100 in the case of the original AM.31 While methods like POMO significantly reduce this gap (e.g., to \~0.5% for TSP100 without augmentation 34), they still lag behind the near-perfect solutions found by Concorde and LKH.  
+* **Improving DRL Quality:** Techniques like sampling multiple solutions or using instance augmentation dramatically improve the quality of DRL solutions, bringing POMO very close to optimal (e.g., 0.14% gap for TSP100 with x8 augmentation 34). However, this comes at the cost of increased inference time.31  
+* **Hybrid Approaches:** Methods like GNN+GLS attempt to bridge this gap by combining the pattern recognition of GNNs with the refinement power of local search.24 They aim for better quality than pure constructive DRL within a reasonable time budget (e.g., \~0.7% gap in \~10s for TSP100 43).
+
+This analysis reinforces the notion that DRL's primary advantage in the context of standard TSP benchmarks lies in its ability to rapidly generate *good*, though perhaps not optimal, solutions. The choice of inference technique (greedy vs. sampling/augmentation) allows tuning this trade-off based on application requirements.31 For scenarios where near-instantaneous solutions are needed and a small optimality gap is acceptable, DRL is a strong contender.12
+
+### **5.5. Scalability and Generalization Challenges**
+
+Despite progress, significant challenges remain, particularly concerning scalability and generalization:
+
+* **Scalability:** Training DRL models directly on very large TSP instances (e.g., n \> 1000\) remains computationally prohibitive due to the vast state-action space and the complexity of evaluating long tours.5 While inference can be fast, the training cost is a major bottleneck.  
+* **Generalization Across Sizes:** A critical issue is that models trained on smaller instances (e.g., TSP50) often perform poorly when directly applied to larger instances (e.g., TSP500).2 This lack of cross-size generalization limits the practicality of training only on small, manageable sizes. Overcoming this requires architectures and training strategies specifically designed for generalization.2  
+* **Generalization Across Distributions:** Models trained on random uniform instances might not perform as well on instances with different structures (e.g., clustered cities) or on real-world TSPLIB instances.26 Robustness to distributional shift is an ongoing area of research.28
+
+These challenges highlight that while DRL has shown promise, significant research is still needed to develop models that are simultaneously high-performing, scalable to large problem sizes, and robustly generalizable across different instance types and sizes – key requirements for widespread practical adoption. The difficulty in scaling and generalizing is a primary driver for many of the recent advances discussed next.
+
+## **6\. Extensions and Recent Advances**
+
+Research in DRL for TSP continues to evolve, addressing limitations and exploring new frontiers through hybrid methods, applications to variants, and novel learning techniques.
+
+### **6.1. Hybrid Approaches**
+
+Recognizing the strengths of both learning-based methods and traditional Operations Research (OR) techniques, many recent approaches focus on hybrid models that combine DRL or deep learning with established algorithms:
+
+* **DRL-Guided Local Search:** Instead of purely constructing solutions, DRL can be used to enhance powerful local search heuristics.  
+  * **GNN+GLS:** Uses a GNN to predict edge "regret" (cost of inclusion relative to optimal), which then guides the Guided Local Search algorithm, leading to faster convergence and improved solution quality compared to earlier DRL methods.24  
+  * **NeuroLKH:** Combines deep learning models with the highly effective LKH heuristic, potentially learning better ways to guide the LKH search process.26  
+  * **DRL-2opt / k-opt:** Trains an RL agent to intelligently select beneficial 2-opt or k-opt moves to apply to a current solution, rather than relying on exhaustive or predefined search strategies.18  
+  * **VSR-LKH:** Replaces the heuristic α-nearness criterion used in LKH for candidate edge selection with a learned Q-value function derived from RL, demonstrating improved performance on large TSPLIB instances.7  
+  * **Policy Gradient \+ Local Search:** Applies local search to tours generated by policy rollouts and uses the improved tour length for computing policy gradients.52
+
+These hybrid approaches suggest a promising direction: leveraging DRL's ability to learn complex patterns from data to make established, powerful optimization algorithms even more effective or efficient. This synergy may overcome some limitations of pure end-to-end DRL, particularly in achieving top-tier solution quality.
+
+### **6.2. DRL for TSP Variants**
+
+A key advantage often cited for DRL is its potential flexibility in handling problem variations by modifying the state, action, or reward structure.17 Research has explored applying DRL to several TSP variants:
+
+* **Prize-Collecting TSP (PC-TSP):** The goal is to collect a required minimum total "prize" from visited cities while minimizing travel distance.1 DRL is well-suited here as prize collection naturally aligns with maximizing cumulative rewards. Multi-agent RL (MARL) has also been applied.1  
+* **Budget-Constrained TSP (BC-TSP):** The objective is to maximize the total prize collected while staying within a predefined travel distance budget.20 MARL frameworks have been developed for this variant as well.20  
+* **TSP with Drone (TSP-D):** Involves coordinating a truck and a drone working in tandem to deliver packages.54 This introduces coordination challenges that standard attention models struggle with, leading to proposals like hybrid Attention-LSTM architectures.54  
+* **Partially Dynamic TSP (PDTSP):** Some city locations are revealed dynamically only after the tour has begun.37 DRL methods using GNNs have been adapted to handle these dynamic updates to the problem graph during execution.37  
+* **Vehicle Routing Problem (VRP):** As a generalization of TSP involving multiple vehicles, capacities, time windows, etc., VRP is a major application area. Many DRL techniques initially developed or benchmarked on TSP are subsequently applied or extended to various VRPs.3
+
+The successful application of DRL to these diverse variants underscores its adaptability, contrasting with highly specialized traditional solvers that might require significant redesign to handle new constraints or objectives.24 This flexibility is a strong argument for DRL in complex, real-world routing scenarios.
+
+### **6.3. Emerging Techniques and Architectures**
+
+Addressing the core challenges of scalability, generalization, and training efficiency remains a major focus, leading to innovative techniques:
+
+* **Hierarchical RL (H-TSP):** Tackles large-scale TSP (up to 10,000 nodes) using a divide-and-conquer approach. An upper-level policy selects small subsets of nodes, and a lower-level policy solves the TSP for these subsets. This approach significantly reduces computation time compared to search-based methods while achieving comparable (though still gapped) solution quality.10  
+* **Unsupervised Learning (UTSP):** Trains GNNs using surrogate loss functions that encourage short Hamiltonian cycles, eliminating the need for RL rewards or optimal labels.23 This approach is reported to be highly parameter- and data-efficient compared to RL or SL methods.23  
+* **Generative Flow Networks (GFlowNets):** Proposed as an alternative to traditional RL, GFlowNets learn to sample solutions with probability proportional to their reward.36 This framework might be better suited for exploring diverse, high-quality solutions in combinatorial spaces.  
+* **DIMES:** Addresses scalability by parameterizing the solution distribution in a compact continuous space, enabling stable REINFORCE training and fine-tuning via massively parallel sampling, combined with a meta-learning framework.15  
+* **Explicit Generalization Focus:** Architectures like TS3 are designed specifically for cross-size generalization by incorporating local (k-NN restricted actions) and global views, along with equivariance-enforcing data augmentation techniques.2
+
+These recent advances signal a shift towards tackling the practical limitations of earlier DRL models. By exploring hierarchy, alternative learning paradigms, continuous representations, and explicit generalization mechanisms, the field aims to make DRL a more viable tool for large-scale, real-world combinatorial optimization.
+
+## **7\. Conclusion**
+
+Deep Reinforcement Learning has emerged as a compelling approach for tackling the Traveling Salesman Problem, offering a paradigm shift from traditional exact or heuristic algorithms towards automatically learned, data-driven heuristics. Leveraging powerful deep learning architectures like Pointer Networks, Transformers (Attention Models), and Graph Neural Networks, DRL agents can be trained, typically using policy gradient (REINFORCE) or Actor-Critic methods, to construct or improve TSP solutions by optimizing for tour length. Significant progress has been made in developing sophisticated training techniques, including advanced baselines (e.g., greedy rollout, POMO's shared baseline) and symmetry exploitation via data augmentation or multi-rollout strategies, to overcome the challenges posed by sparse rewards and large search spaces.  
+The primary appeal of DRL for TSP often lies not in achieving absolute optimality on static benchmarks, but in its potential for a favorable **speed-quality trade-off**. DRL methods can generate near-optimal solutions significantly faster than exact solvers and often faster than highly optimized heuristics like LKH, making them suitable for time-critical applications. Furthermore, the inherent flexibility of the RL framework allows for adaptation to various TSP constraints and variants (e.g., prize-collecting, budget-constrained, dynamic nodes, drone coordination) potentially more readily than highly specialized traditional solvers.  
+However, significant **limitations** persist. Achieving solution quality comparable to state-of-the-art solvers like Concorde or LKH on large, static TSP instances remains a major hurdle for most pure DRL approaches.52 **Scalability and generalization** are arguably the most critical challenges; training models on large instances is computationally expensive, and models trained on small instances often fail to generalize effectively to larger ones without significant performance degradation.2 The inherent **sparsity of rewards** in the standard TSP formulation complicates credit assignment and necessitates sophisticated training algorithms and variance reduction techniques.  
+**Future directions** in this field are likely to focus on overcoming these limitations. Continued research into novel architectures and training algorithms specifically designed for **scalability and cross-size/cross-distribution generalization** is crucial.2 Exploring alternative learning paradigms like **Unsupervised Learning** 23 or **GFlowNets** 36 may offer paths to improved sample efficiency and exploration. Perhaps most promising is the continued development of **hybrid approaches** that synergistically combine the pattern-learning strengths of DRL/DL with the proven refinement capabilities of traditional OR techniques like local search.18 Rather than aiming for DRL to completely replace decades of OR research for static TSP, leveraging the best of both worlds seems the most pragmatic path towards building practical, high-performance solvers for complex routing problems. Further work is also needed to apply these techniques to more intricate real-world scenarios and improve the interpretability of the learned heuristics.
+
+## **8\. Use of Large Language Models**
+
+To prepare this survey, in the research phase I extensively used Google Gemini Model and its Deep Research tool to conduct comprehensive searches on different topics and subtopics related to this survey paper. I also used Gemini to check over my writing to see if there were any inconsistencies or grammatical errors. I also took suggestions in some cases on how to section parts of the document. All in all, it was a huge help in getting this paper done. The reason I chose gemini over OpenAIs models was that gemini interfaced with google docs and that google did not rate limit its models in the way OpenAI did.
+
+## **10\. Appendix**
+
+### **Annotated Bibliography**
+
+#### **Works cited**
+
+1. Prize-Collecting Traveling Salesman Problem: a Reinforcement Learning Approach,  
+
+[https://ieeexplore.ieee.org/document/10279682](https://ieeexplore.ieee.org/document/10279682)  
+             
+In this study, the authors develop an RL-based framework that enables an agent to learn optimal routing strategies through interactions with the environment. The approach leverages deep reinforcement learning techniques to handle the combinatorial complexity inherent in PC-TSP. Experimental results demonstrate that the proposed method achieves competitive performance compared to traditional optimization algorithms, particularly in scenarios where exact solutions are computationally infeasible.
+
+2. GENERALIZABLE DEEP RL-BASED TSP SOLVER VIA APPROXIMATE INVARIANCE \- OpenReview,  [https://openreview.net/pdf?id=oGsR3MJvwS](https://openreview.net/pdf?id=oGsR3MJvwS)
+
+In this paper the authors introduce TS³, a deep reinforcement learning (DRL) framework designed to address the Traveling Salesman Problem (TSP) with enhanced generalization capabilities. Traditional DRL approaches often struggle to generalize to larger TSP instances than those encountered during training. TS³ mitigates this by enforcing approximate invariances through a combination of local and global views of the problem space.
+
+Specifically, TS³ restricts the action space to the *k*\-nearest neighbors of the current node, simplifying decision-making and focusing on the most promising candidates. It employs a Transformer-based model trained via a modified policy gradient algorithm enhanced with data augmentation techniques. To further bolster performance, TS³ integrates Monte Carlo Tree Search (MCTS), allowing for more effective exploration of potential solutions.
+
+Empirical evaluations on both synthetic and benchmark datasets, including TSPLIB, demonstrate that TS³ outperforms existing DRL-based methods, particularly in its ability to generalize to larger TSP instances. This work contributes to the field by providing a scalable and adaptable DRL solution to a classic combinatorial optimization problem.
+
+3. Knowledge-Based Systems Deep reinforcement learning for transportation network combinatorial optimization: A survey,  [https://scholar.harvard.edu/files/ctang/files/1-s2.0-s0950705121007887-main.pdf](https://scholar.harvard.edu/files/ctang/files/1-s2.0-s0950705121007887-main.pdf)
+
+The authors present a novel approach to solving complex transportation network design problems using deep reinforcement learning (DRL). Traditional methods for such optimization tasks often rely on heuristic or exact algorithms, which can be computationally intensive and may not generalize well to dynamic or large-scale networks.
+
+In this study, the authors model the transportation network design problem as a Markov Decision Process (MDP), enabling the application of DRL techniques. They propose a DRL framework that learns optimal policies for network design decisions through interactions with the environment, effectively capturing the sequential and stochastic nature of transportation systems. The framework integrates a deep neural network to approximate the value function, facilitating efficient policy learning even in high-dimensional state spaces.
+
+The authors validate their approach through experiments on benchmark transportation network scenarios, demonstrating that the DRL-based method outperforms traditional optimization techniques in terms of solution quality and computational efficiency. The results indicate that the proposed DRL framework can adapt to varying network conditions and scales, offering a scalable and flexible solution for real-world transportation network optimization challenges.
+
+4. www.uwaterloo.ca,  [https://www.uwaterloo.ca/scholar/sites/ca.scholar/files/b327zhan/files/bohanzhang\_rl\_tsp.pdf](https://www.uwaterloo.ca/scholar/sites/ca.scholar/files/b327zhan/files/bohanzhang_rl_tsp.pdf)
+
+The author offers a comprehensive survey of recent reinforcement learning (RL) methodologies applied to the Traveling Salesman Problem (TSP). Recognizing the TSP’s NP-hard nature and its significance in various real-world applications, the author emphasizes the importance of evaluating RL approaches not only based on theoretical advancements but also on their practical utility.
+
+The survey introduces a unified neural combinatorial optimization pipeline comprising five key components: input definition, input encoder, solution decoder, learning policy, and inference method. This framework serves as a basis for analyzing and comparing different RL-based TSP solvers. The paper categorizes RL methods into two primary types: construction heuristics, which build solutions from scratch, and improvement heuristics, which iteratively enhance existing solutions.
+
+Through this analysis, the author identifies that while pure deep learning-based RL methods show promise, they often struggle with scalability and generalization to larger TSP instances. Conversely, hybrid approaches that integrate traditional heuristic algorithms with RL techniques demonstrate superior performance, effectively balancing solution quality and computational efficiency.
+
+5. Hybrid pointer networks for traveling salesman problems optimization \- PubMed Central,  [https://pmc.ncbi.nlm.nih.gov/articles/PMC8670669/](https://pmc.ncbi.nlm.nih.gov/articles/PMC8670669/)
+
+THe authors introduce a novel deep reinforcement learning (DRL) architecture called the Hybrid Pointer Network (HPN) to address the Traveling Salesman Problem (TSP) .
+
+The HPN architecture enhances traditional pointer networks by integrating a graph embedding layer with a Transformer encoder, creating a hybrid context encoder. This combination allows the model to capture both local and global structural information of the TSP graph, improving its ability to generate efficient tours.
+
+Extensive experiments were conducted comparing HPN to the Graph Pointer Network (GPN) across various TSP instances, including problems with up to 1,000 cities. The results demonstrated that HPN consistently outperformed GPN, achieving lower total tour costs. For instance, on TSP instances with 50 cities (TSP50), HPN reduced the average tour cost from 5.959 to 5.706 without employing additional optimization techniques like 2-opt.
+
+The authors have made the HPN model, along with the associated data and code, publicly available on GitHub, facilitating further research and application in combinatorial optimization problems.
+
+6. Pointerformer: Deep Reinforced Multi-Pointer Transformer for the Traveling Salesman Problem \- AAAI Publications,  [https://ojs.aaai.org/index.php/AAAI/article/view/25982/25754](https://ojs.aaai.org/index.php/AAAI/article/view/25982/25754)
+
+To overcome these challenges, the authors propose the Pointerformer architecture, which integrates a reversible residual network in the encoder to reduce memory usage and a multi-pointer network in the decoder to enhance solution quality. Additionally, the model employs feature augmentation to exploit TSP symmetries and an enhanced context embedding mechanism to incorporate comprehensive contextual information during decision-making.
+
+Experimental evaluations on both synthetic and benchmark datasets demonstrate that Pointerformer not only matches the performance of state-of-the-art DRL methods on small-scale TSP instances but also generalizes effectively to larger instances, maintaining high solution quality with improved efficiency.
+
+7. Near-Optimal Traveling Salesman Solution with Deep Attention \- The Science and Information (SAI) Organization,  [https://thesai.org/Downloads/Volume15No12/Paper\_95-Near\_Optimal\_Traveling\_Salesman\_Solution.pdf](https://thesai.org/Downloads/Volume15No12/Paper_95-Near_Optimal_Traveling_Salesman_Solution.pdf)
+
+Traditional methods for solving TSP, such as exact algorithms and heuristics, often involve iterative processes that can be computationally intensive and time-consuming, especially for large-scale instances. This research proposes a deep learning architecture that predicts optimal or near-optimal TSP tours directly from the problem’s distance matrix, thereby eliminating the need for extensive iterations and reducing total solving time.
+
+The proposed model leverages attention mechanisms to focus on the most relevant parts of the network, ensuring accurate and efficient tour predictions. It has been tested on the TSPLIB benchmark dataset, demonstrating significant improvements in both solution quality and computational speed compared to traditional solvers like Gurobi and Genetic Algorithms
+
+8. Solving method of traveling salesman problem based on performer graph self-attention mechanism \- ResearchGate,  [https://www.researchgate.net/publication/387435336\_Solving\_method\_of\_traveling\_salesman\_problem\_based\_on\_performer\_graph\_self-attention\_mechanism](https://www.researchgate.net/publication/387435336_Solving_method_of_traveling_salesman_problem_based_on_performer_graph_self-attention_mechanism)  
+9. Navigating Intelligence: A Survey of Google OR-Tools and Machine Learning for Global Path Planning in Autonomous Vehicles \- arXiv,  [https://arxiv.org/html/2503.03338v1](https://arxiv.org/html/2503.03338v1)  
+10. Reinforcement learning for the traveling salesman problem: Performance comparison of three algorithms \- ResearchGate,  [https://www.researchgate.net/publication/373603356\_Reinforcement\_learning\_for\_the\_traveling\_salesman\_problem\_Performance\_comparison\_of\_three\_algorithms](https://www.researchgate.net/publication/373603356_Reinforcement_learning_for_the_traveling_salesman_problem_Performance_comparison_of_three_algorithms)  
+11. NeurIPS Poster Unsupervised Learning for Solving the Travelling Salesman Problem,  [https://neurips.cc/virtual/2023/poster/70610](https://neurips.cc/virtual/2023/poster/70610)  
+12. DIMES: A Differentiable Meta Solver for Combinatorial Optimization Problems \- Ruizhong Qiu,  [https://q-rz.github.io/static/neurips22/neurips22-dimes-paper.pdf](https://q-rz.github.io/static/neurips22/neurips22-dimes-paper.pdf)  
+13. Attention Solves your TSP \- Paper review & Research progress \- The University of Chicago,  [http://people.cs.uchicago.edu/\~hytruongson/Discussions-2020/Attention\_Solves\_your\_TSP.pdf](http://people.cs.uchicago.edu/~hytruongson/Discussions-2020/Attention_Solves_your_TSP.pdf)  
+14. Solving the Traveling Salesman Problem with Reinforcement Learning \- Eki.Lab,  [https://ekimetrics.github.io/blog/2021/11/03/tsp/](https://ekimetrics.github.io/blog/2021/11/03/tsp/)  
+15. H-TSP: Hierarchically Solving the Large-Scale Traveling Salesman Problem \- AAAI Publications,  [https://ojs.aaai.org/index.php/AAAI/article/view/26120/25892](https://ojs.aaai.org/index.php/AAAI/article/view/26120/25892)  
+16. H-TSP: Hierarchically Solving the Large-Scale Traveling Salesman Problem,  [https://www.researchgate.net/publication/371915153\_H-TSP\_Hierarchically\_Solving\_the\_Large-Scale\_Traveling\_Salesman\_Problem](https://www.researchgate.net/publication/371915153_H-TSP_Hierarchically_Solving_the_Large-Scale_Traveling_Salesman_Problem)  
+17. Budget-Constrained Traveling Salesman Problem: a Reinforcement Learning Approach \- CDN,  [https://bpb-us-e2.wpmucdn.com/sites.uci.edu/dist/2/5230/files/2023/09/33\_SCR\_23\_Jessica-Gonzalez-Zari-Justine-Magnaye.pdf](https://bpb-us-e2.wpmucdn.com/sites.uci.edu/dist/2/5230/files/2023/09/33_SCR_23_Jessica-Gonzalez-Zari-Justine-Magnaye.pdf)  
+18. Combining Reinforcement Learning with Lin-Kernighan-Helsgaun Algorithm for the Traveling Salesman Problem \- AAAI,  [https://cdn.aaai.org/ojs/17476/17476-13-20970-1-2-20210518.pdf](https://cdn.aaai.org/ojs/17476/17476-13-20970-1-2-20210518.pdf)  
+19. Unsupervised Learning for Solving the Travelling Salesman Problem \- Computer Science Cornell,  [https://www.cs.cornell.edu/gomes/pdf/2023\_min\_neurips\_tsp.pdf](https://www.cs.cornell.edu/gomes/pdf/2023_min_neurips_tsp.pdf)  
+20. GRAPH NEURAL NETWORK GUIDED LOCAL SEARCH FOR THE TRAVELING SALESPERSON PROBLEM \- OpenReview,  [https://openreview.net/pdf?id=ar92oEosBIg](https://openreview.net/pdf?id=ar92oEosBIg)  
+21. Objective Robustness in Deep Reinforcement Learning,  [https://www.gatsby.ucl.ac.uk/\~balaji/udl2021/accepted-papers/UDL2021-paper-055.pdf](https://www.gatsby.ucl.ac.uk/~balaji/udl2021/accepted-papers/UDL2021-paper-055.pdf)  
+22. A Graph Pointer Network-Based Multi-Objective Deep Reinforcement Learning Algorithm for Solving the Traveling Salesman Problem \- MDPI,  [https://www.mdpi.com/2227-7390/11/2/437](https://www.mdpi.com/2227-7390/11/2/437)  
+23. vitercik.github.io,  [https://vitercik.github.io/ml4do/assets/notes/lecture3.pdf](https://vitercik.github.io/ml4do/assets/notes/lecture3.pdf)  
+24. arxiv.org,  [https://arxiv.org/abs/1803.08475](https://arxiv.org/abs/1803.08475)  
+25. POMO: Policy Optimization with Multiple Optima for Reinforcement Learning \- ResearchGate,  [https://www.researchgate.net/publication/345152790\_POMO\_Policy\_Optimization\_with\_Multiple\_Optima\_for\_Reinforcement\_Learning](https://www.researchgate.net/publication/345152790_POMO_Policy_Optimization_with_Multiple_Optima_for_Reinforcement_Learning)
+
+Traditional RL approaches often struggle with CO problems due to the presence of multiple equivalent optimal solutions and the risk of converging to local minima. POMO mitigates these issues by initiating multiple solution trajectories from different starting points within a single problem instance. This strategy leverages the inherent symmetries in CO problems, such as the Traveling Salesman Problem (TSP), where the optimal tour remains the same regardless of the starting city.
+
+Central to POMO is a modified REINFORCE algorithm that employs a shared baseline across all trajectories. This shared baseline reduces variance in gradient estimates, leading to more stable and efficient training. Additionally, POMO incorporates an augmentation-based inference method that enhances solution diversity and quality.
+
+Empirical evaluations demonstrate POMO’s effectiveness across several NP-hard problems, including TSP, Capacitated Vehicle Routing Problem (CVRP), and 0-1 Knapsack Problem (KP). Notably, on TSP instances with 100 cities (TSP100), POMO achieves an optimality gap of just 0.14% while significantly reducing inference time compared to existing learned heuristics .
+
+This work contributes to the field by providing a scalable and generalizable RL-based approach for solving complex CO problems, highlighting the potential of leveraging problem symmetries and multiple solution trajectories to enhance performance.
+
+26. arXiv:2403.07041v4 \[cs.LG\] 28 Feb 2025,  [https://arxiv.org/pdf/2403.07041](https://arxiv.org/pdf/2403.07041)  
+27. Learning the Partially Dynamic Travelling Salesman Problem \- OpenReview,  [https://openreview.net/forum?id=NIhRwzqhUz](https://openreview.net/forum?id=NIhRwzqhUz)  
+28. Reinforcement Learning Enhanced Explainer for Graph Neural Networks \- NIPS papers,  [https://papers.nips.cc/paper/2021/file/be26abe76fb5c8a4921cf9d3e865b454-Paper.pdf](https://papers.nips.cc/paper/2021/file/be26abe76fb5c8a4921cf9d3e865b454-Paper.pdf)  
+29. Towards Generalized Combinatorial Solvers via Reward Adjustment Policy Optimization,  [https://openreview.net/forum?id=KjzZrBsORz](https://openreview.net/forum?id=KjzZrBsORz)  
+30. Pointer Networks,  [http://papers.neurips.cc/paper/5866-pointer-networks.pdf](http://papers.neurips.cc/paper/5866-pointer-networks.pdf)  
+31. A Travel Salesman Problem Solving Algorithm Based on Feature Enhanced Attention Model,  [http://www.csroc.org.tw/journal/JOC35-2/JOC3502-14.pdf](http://www.csroc.org.tw/journal/JOC35-2/JOC3502-14.pdf)  
+32. Travelling Salesman Problem Goes Sparse With Graph Neural Networks \- OpenReview,  [https://openreview.net/forum?id=mnRLzeNsVN](https://openreview.net/forum?id=mnRLzeNsVN)  
+33. Generalization in Deep RL for TSP Problems via Equivariance and Local Search,  [https://openreview.net/forum?id=TLnReGgZEdW](https://openreview.net/forum?id=TLnReGgZEdW)  
+34. \[2112.12545\] A Deep Reinforcement Learning Approach for Solving the Traveling Salesman Problem with Drone \- arXiv,  [https://arxiv.org/abs/2112.12545](https://arxiv.org/abs/2112.12545)
